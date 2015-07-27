@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Insider Threat Detection - iPCA Toolkit</title>
+  <link rel="stylesheet" href="./static/lib/css//bootstrap.min.css">
+  <link rel="stylesheet" href="./static/lib/css/keen-dashboards.css">
+  <link rel="stylesheet" href="./static/lib/css/dc.css">
+  <link rel="stylesheet" href="./static/css/custom.css">
+
+  <script src="./static/lib/js/jquery.js"></script>
+  <script src="./static/lib/js/bootstrap.min.js"></script>
+  
+  <script src="./static/lib/js/d3.js"></script>
+
+  <script src="./static/lib/js/queue.js"></script>
+  <script src="./static/lib/js/keen.min.js"></script>
+
+<script src='./static/js/ipca_scatterplot.js' type='text/javascript'></script>
+<script src='./static/js/ipca_paracoords.js' type='text/javascript'></script>
+<script src='./static/js/ipca_paracoords_vertical.js' type='text/javascript'></script>
+<script src='./static/js/ipca_selection.js' type='text/javascript'></script>
+<script src='./static/js/ipca_userrole.js' type='text/javascript'></script>
+<script src='./static/js/ipca_userdetail.js' type='text/javascript'></script>
+</head>
+
+<script>
+var scatter_data = []
+var all_data = [];
+var projection_axes = ["ev0","ev1"];
+var image_path = 'http://www.cems.uwe.ac.uk/~pa-legg/resources/ajax-loader.gif';
+
+// if zero users selected, show eigenvalue pc
+// if one then show plot full size
+// if more than one then show multiple plots as grid
+var selected_users_to_plot = []
+var selected_features = []
+var all_features = []
+var selected_details = []
+
+var paracoords_colours = ['rgb(166,206,227)','rgb(31,120,180)','rgb(178,223,138)','rgb(51,160,44)','rgb(251,154,153)','rgb(227,26,28)','rgb(253,191,111)','rgb(255,127,0)','rgb(202,178,214)','rgb(106,61,154)','rgb(255,255,153)','rgb(217,217,217)','rgb(188,128,189)','rgb(204,235,197)']
+
+function set_normalize_pca() {
+  $.ajax({
+    url : "set_normalize_pca",
+    success : function(data) {
+        all_data = JSON.parse(data);
+      }
+    });
+}
+
+function initializeData() {
+  pca_axis1 = -1; //parseInt(projection_axes[0].split("ev")[1])
+  pca_axis2 = -1; //parseInt(projection_axes[1].split("ev")[1])
+
+  if (projection_axes.length > 0) {
+    pca_axis1 = parseInt(projection_axes[0].split("ev")[1])
+  }
+  if (projection_axes.length > 1) {
+    pca_axis2 = parseInt(projection_axes[1].split("ev")[1])
+  }
+
+  $.ajax({
+    url : "prepare_data",
+    beforeSend : function() { $('#chart-projection_view').css('background', "url(http://www.cems.uwe.ac.uk/~pa-legg/resources/ajax-loader.gif) no-repeat")},
+    complete : function() { $('#chart-projection_view').css('background', 'none') },
+    success : function(data) {
+        all_data = JSON.parse(data);
+        console.log(all_data);
+
+        var id = 0;
+        var this_data = []
+        var eigen_data = []
+        for (i in all_data['data']){
+            var new_entry = {}
+            var new_eigen_entry = {}
+            new_entry['name'] = all_data['target_names'][all_data['target'][i]]
+            new_entry['id'] = id
+            new_eigen_entry['name'] = all_data['target_names'][all_data['target'][i]]
+            new_eigen_entry['id'] = id
+            for (j in all_data['axes']) {
+                new_entry[all_data['axes'][j]] = all_data['data'][i][j]
+            }
+            if (pca_axis1 > -1) {
+              new_entry['pca_x'] = all_data['pca'][i][pca_axis1];
+            } else {
+              new_entry['pca_x'] = 0
+            }
+            
+            if (pca_axis2 > -1) {
+              new_entry['pca_y'] = all_data['pca'][i][pca_axis2];
+            } else {
+              new_entry['pca_y'] = 0;
+            }
+            for (j in all_data['pca'][i]) {
+              new_eigen_entry['ev' + j] = all_data['pca'][i][j];
+            }
+            new_entry['selected'] = false;
+
+            this_data.push(new_entry);
+            eigen_data.push(new_eigen_entry);
+            id = id + 1;
+        }
+
+        document.getElementById("chart-projection_view-title").innerHTML = "Projection View (" + this_data.length + " data records)";
+        console.log(eigen_data);
+        
+        create_eigenvalue_view(eigen_data, "#chart-eigenvalue_view")
+        create_feature_view(this_data, "#chart-feature_view")
+        create_feature_selection_view(all_data['axes'], "#chart-featureselection_view")
+
+        scatter_data = this_data;
+        create_projection_view("#chart-projection_view") 
+
+    }
+  });
+}
+
+function initializeRealData() {
+  pca_axis1 = -1;
+  pca_axis2 = -1;
+
+  if (projection_axes.length > 0) {
+    pca_axis1 = parseInt(projection_axes[0].split("ev")[1])
+  }
+  if (projection_axes.length > 1) {
+    pca_axis2 = parseInt(projection_axes[1].split("ev")[1])
+  }
+
+  console.log(selected_features);
+
+  $.ajax({
+    url : "prepare_real_data",
+    data : {'selected_features': selected_features.toString()},
+    beforeSend : function() { $('#chart-projection_view').css('background', "url(http://www.cems.uwe.ac.uk/~pa-legg/resources/ajax-loader.gif) no-repeat")},
+    complete : function() { $('#chart-projection_view').css('background', 'none') },
+    success : function(data) {
+        all_data = JSON.parse(data);
+        console.log(all_data);
+
+        var id = 0;
+        var this_data = []
+        var eigen_data = []
+        for (i in all_data['data']){
+            var new_entry = {}
+            var new_eigen_entry = {}
+            new_entry['name'] = all_data['target_names'][all_data['target'][i]]
+            new_entry['name_id'] = all_data['target'][i]
+            new_entry['id'] = id
+            new_entry['user'] = all_data['detail'][i][1]
+            new_entry['date'] = all_data['detail'][i][0]
+            new_eigen_entry['name'] = all_data['target_names'][all_data['target'][i]]
+            new_eigen_entry['name_id'] = all_data['target'][i]
+            new_eigen_entry['id'] = id
+            for (j in all_data['axes']) {
+                new_entry[all_data['axes'][j]] = all_data['data'][i][j]
+            }
+            if (pca_axis1 > -1) {
+              new_entry['pca_x'] = all_data['pca'][i][pca_axis1];
+            } else {
+              new_entry['pca_x'] = 0
+            }
+            
+            if (pca_axis2 > -1) {
+              new_entry['pca_y'] = all_data['pca'][i][pca_axis2];
+            } else {
+              new_entry['pca_y'] = 0;
+            }
+            for (j in all_data['pca'][i]) {
+              new_eigen_entry['ev' + j] = all_data['pca'][i][j];
+            }
+            new_entry['selected'] = false;
+
+            this_data.push(new_entry);
+            eigen_data.push(new_eigen_entry);
+            id = id + 1;
+        }
+
+        document.getElementById("chart-projection_view-title").innerHTML = "Projection View (" + this_data.length + " data records)";
+        //console.log(eigen_data);
+
+        all_features = all_data['axes'];
+        
+        create_eigenvalue_view(eigen_data, "#chart-eigenvalue_view")
+        create_feature_view(this_data, "#chart-feature_view")
+        create_feature_selection_view(all_data['axes'], "#chart-featureselection_view")
+        
+        scatter_data = this_data;
+        create_projection_view("#chart-projection_view") 
+
+    }
+  });
+}
+
+function setup_csv() {
+  $.ajax({
+      url : "load_csv",
+      success : function(data) {
+        console.log(JSON.parse(data));
+      }
+    });
+}
+
+function setup_example() {
+  $.ajax({
+      url : "load_example",
+      success : function(data) {
+        console.log(JSON.parse(data));
+      }
+    });
+}
+
+
+
+function run_profiler() {
+  //COMMENTED TO AVOID ACCIDENTAL EXECUTION
+  $.get(
+      url="profiler",
+      data={'start_date':from_date.toUTCString(), 'end_date':to_date.toUTCString()}, 
+      success=function(data) {
+        console.log(JSON.parse(data));
+      }
+    );
+}
+
+</script>
+
+
+<body class="application">
+
+  <div class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+    <div class="container-fluid">
+      <div class="navbar-header">
+        <a class="navbar-brand" href="./">Insider Threat Detection - iPCA Toolkit</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="row">
+
+      <div class="col-sm-3">
+
+          <div class="chart-wrapper">
+            <div class="chart-title">
+              User Selection View
+            </div>
+            <div class="chart-stage">
+              <div id="chart-selection_view"></div>
+              <div id="chart-userrole_view"></div>
+            </div>
+            <div class="chart-notes">
+              <div id="chart-selection_view-notes">Selection:</div>
+            </div>
+          </div>
+      </div>
+
+      <!-- First column -->
+      <div class="col-sm-6">
+          <div class="chart-wrapper">
+            <div class="chart-title">
+              <div id="chart-projection_view-title">Projection View</div>
+              
+            </div>
+            <div class="chart-stage">
+              <div id="chart-projection_view"></div>
+            </div>
+            <div class="chart-notes">
+              <div id="chart-projection_view-notes">Selection:</div>
+            </div>
+          </div>
+        
+      </div>
+
+      <!-- Second column -->
+
+      <div class="col-sm-3">
+
+          <div class="chart-wrapper">
+            <div class="chart-title">
+              Detail View
+            </div>
+            <div class="chart-stage">
+              <div id="chart-eigenvalue_view"></div>
+            </div>
+            <div class="chart-notes">
+              <div id="chart-eigenvalue_view-notes">Selection:</div>
+            </div>
+          </div>
+      </div>
+
+    </div>
+
+    <div class="row">
+
+      <div class="col-sm-3">
+        <div class="chart-wrapper">
+          <div class="chart-title">
+            Feature Selection View (<a href="#" onclick="select_all_features(1)">Select All</a>) (<a href="#" onclick="select_all_features(0)">Deselect All</a>)
+          </div>
+          <div class="chart-stage">
+            <div id="chart-featureselection_view">
+            </div>
+          </div>
+          <div class="chart-featureselection_view-notes">
+          </div>
+        </div>
+      </div>
+
+      <div class="col-sm-6">
+        <div class="chart-wrapper">
+          <div class="chart-title">
+            Feature View
+          </div>
+          <div class="chart-stage">
+            <div id="chart-feature_view">
+             
+            </div>
+          </div>
+          <div class="chart-notes">
+            <div id="chart-feature_view-notes">Selection:</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-sm-3">
+        <div class="chart-wrapper">
+          <div class="chart-title">
+            Configuration
+          </div>
+          <div class="chart-stage">
+            <div id="chart-config_view">
+          <!--    <p><a href="#" onclick="setup_example()">Load from example</a></p> -->
+          <!--    <p><a href="#" onclick="setup_csv()">Load from CSV</a></p> -->
+          <!--    <p><a href="#" onclick="initializeData()">Initialize Data</a></p> -->
+              <p><a href="#" onclick="getDataForTimelineVisualization()">Initialize Timeline</a></p>
+           <!--   <p><a href="#" onclick="run_profiler()">Run Profiler</a></p> -->
+              <p><a href="#" onclick="initializeRealData()">Projection View</a></p>
+              <p><a href="#" onclick="set_normalize_pca()">Normalize PCA</a></p>
+              <p><a href="#" onclick="set_show_detailed_role()">Show role in background</a></p>
+              <p><a href="#" onclick="set_show_detailed_role_as_radial()"> Grid / Radial Plot</a></p>
+              
+
+              
+             
+            </div>
+          </div>
+          <div class="chart-config_view-notes">
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+    <hr>
+  </div>
+    
+
+<script>
+d3.select("#chart-selection_view").append("svg")
+.attr("width", 200)
+.attr("height", 400);
+
+d3.select("#chart-userrole_view").append("svg")
+.attr("width", 200)
+.attr("height", 400);
+
+d3.select("#chart-projection_view").append("svg")
+.attr("width", 400)
+.attr("height", 510);
+
+d3.select("#chart-eigenvalue_view").append("svg")
+.attr("width", 200)
+.attr("height", 510);
+
+d3.select("#chart-feature_view").append("svg")
+.attr("width", 400)
+.attr("height", 200);
+
+
+var projection_window = [$('#chart-projection_view').width(), $('#chart-projection_view').height()];
+var features_window = [$('#chart-feature_view').width(), $('#chart-feature_view').height()];
+var eigenvalue_window = [$('#chart-eigenvalue_view').width(), $('#chart-eigenvalue_view').height()];
+var selection_window = [$('#chart-selection_view').width(), $('#chart-selection_view').height()];
+var userrole_window = [$('#chart-userrole_view').width(), $('#chart-userrole_view').height()];
+window.onresize = function(event) {
+  projection_window = [$('#chart-projection_view').width(), $('#chart-projection_view').height()];
+  features_window = [$('#chart-feature_view').width(), $('#chart-feature_view').height()];
+  eigenvalue_window = [$('#chart-eigenvalue_view').width(), $('#chart-eigenvalue_view').height()];
+  selection_window = [$('#chart-selection_view').width(), $('#chart-selection_view').height()];
+  userrole_window = [$('#chart-userrole_view').width(), $('#chart-userrole_view').height()];
+};
+
+createTimelineVisualization("#chart-selection_view")
+//createUserRoleVisualization("#chart-userrole_view")
+
+
+// $.get(
+//   url="get_date_from_server",
+//   success=function(data) {
+//     console.log(JSON.parse(data));
+//   }
+// );
+
+
+</script>
+  
+
+</body>
+</html>

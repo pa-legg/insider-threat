@@ -1,0 +1,71 @@
+div #chart-featureselection_view, #chart-config_view { 
+    overflow: auto; 
+    height: 200px; 
+    width: 500px;
+} 
+
+
+
+
+.paracoords_brush1 .extent {
+  fill-opacity: .3;
+  stroke: #fff;
+  shape-rendering: crispEdges;
+}
+
+.paracoords_brush2 .extent {
+  fill-opacity: .3;
+  stroke: #fff;
+  shape-rendering: crispEdges;
+}
+
+.paracoords_axis line,
+.paracoords_axis path {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.paracoords_axis text {
+  text-shadow: 0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff;
+  cursor: move;
+}
+
+.paracoords_axis2 line,
+.paracoords_axis2 path {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.paracoords_axis2 text {
+  text-shadow: 0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff;
+  cursor: move;
+}
+
+
+
+text {
+  font: 10px sans-serif;
+}
+
+.area {
+  fill: steelblue;
+  clip-path: url(#clip);
+  fill-opacity: 0.5;
+}
+
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.brush .extent {
+  stroke: #fff;
+  fill:#f55;
+  fill-opacity: .4;
+  shape-rendering: crispEdges;
+}
